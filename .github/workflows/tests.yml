@@ -26,6 +26,9 @@ jobs:
           tools: composer:v2
           coverage: none
 
+      - name: Validate composer.json against the lockfile
+        run: composer validate --strict
+
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
