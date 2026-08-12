@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Lumina\Core\Support\CountryResolver;
-use Tests\TestCase;
+use Lumina\Core\Tests\TestCase;
 
 uses(TestCase::class);
 

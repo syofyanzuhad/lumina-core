@@ -93,3 +93,18 @@ vendor/bin/pest packages/lumina-core/tests/
 
 ## 📄 License
 MIT License.
+
+---
+
+## 🧪 Testing
+
+The package test suite runs **standalone** with [Orchestra Testbench](https://github.com/orchestral/testbench) against an in-memory SQLite database — no host Laravel application required:
+
+```bash
+composer install
+composer test
+```
+
+CI runs the same command on every push/PR (see `.github/workflows/tests.yml`).
+
+The same test files also run inside the host monorepo via `php artisan test`: `tests/TestCase.php` binds to the host application when Testbench is absent, and to Testbench when run standalone.

@@ -9,7 +9,7 @@ use Lumina\Core\Models\Event;
 use Lumina\Core\Models\Goal;
 use Lumina\Core\Models\Site;
 use Lumina\Core\Services\AnalyticsService;
-use Tests\TestCase;
+use Lumina\Core\Tests\TestCase;
 
 uses(TestCase::class, RefreshDatabase::class);
 

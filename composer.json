@@ -19,6 +19,23 @@
             "Lumina\\Core\\Tests\\": "tests/"
         }
     },
+    "require-dev": {
+        "livewire/livewire": "^4.3",
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^4.7"
+    },
+    "scripts": {
+        "test": [
+            "vendor/bin/pest"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
     "extra": {
         "laravel": {
             "providers": [

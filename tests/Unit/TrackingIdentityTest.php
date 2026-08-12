@@ -3,7 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Lumina\Core\Support\TrackingIdentity;
-use Tests\TestCase;
+use Lumina\Core\Tests\TestCase;
 
 uses(TestCase::class);
 

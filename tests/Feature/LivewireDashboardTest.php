@@ -9,7 +9,7 @@ use Lumina\Core\Enums\DeviceType;
 use Lumina\Core\Livewire\Dashboard;
 use Lumina\Core\Models\Event;
 use Lumina\Core\Models\Site;
-use Tests\TestCase;
+use Lumina\Core\Tests\TestCase;
 
 class LivewireDashboardTest extends TestCase
 {
