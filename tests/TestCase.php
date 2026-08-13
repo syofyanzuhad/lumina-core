@@ -68,9 +68,7 @@ if (class_exists(\Orchestra\Testbench\TestCase::class)) {
             $app['config']->set('cache.default', 'array');
             $app['config']->set('lumina.geoip.driver', 'disabled');
 
-            // The owner model belongs to the host app; point it at the
-            // test-only stand-in so Site::factory() can satisfy the owner_id
-            // foreign key without a host application.
+            $app['config']->set('app.key', 'base64:4TzR41xS35B4Q3qH+54B/gY2148Qn8aK7gY2148Qn8a=');
             $app['config']->set('auth.providers.users.model', User::class);
 
             // RefreshDatabase's migrate:fresh must create Testbench's default

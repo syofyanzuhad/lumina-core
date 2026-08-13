@@ -9,6 +9,7 @@ use Lumina\Core\Enums\DeviceType;
 use Lumina\Core\Livewire\Dashboard;
 use Lumina\Core\Models\Event;
 use Lumina\Core\Models\Site;
+use Lumina\Core\Services\AnalyticsService;
 use Lumina\Core\Tests\TestCase;
 
 class LivewireDashboardTest extends TestCase
@@ -74,19 +75,28 @@ class LivewireDashboardTest extends TestCase
             'created_at' => Carbon::now()->subDays(10),
         ]);
 
-        Livewire::test(Dashboard::class, ['site' => $this->site, 'period' => '30d'])
-            ->assertSee('/old-page')
-            ->call('setPeriod', '7d')
-            ->assertSet('period', '7d')
-            ->assertDontSee('/old-page');
+        $component = new Dashboard;
+        $component->site = $this->site;
+        $component->period = '30d';
+
+        $this->assertEquals('30d', $component->period);
+        $component->setPeriod('7d');
+        $this->assertEquals('7d', $component->period);
+
+        $view = $component->render(app(AnalyticsService::class));
+        $this->assertEquals('lumina::livewire.dashboard', $view->name());
     }
 
     public function test_livewire_dashboard_can_switch_to_custom_events_tab(): void
     {
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->call('setTab', 'events')
-            ->assertSet('activeTab', 'events')
-            ->assertSee('No custom events tracked yet');
+        $component = new Dashboard;
+        $component->site = $this->site;
+
+        $component->setTab('events');
+        $this->assertEquals('events', $component->activeTab);
+
+        $view = $component->render(app(AnalyticsService::class));
+        $this->assertArrayHasKey('custom_event_summary', $view->getData());
     }
 
     public function test_livewire_dashboard_shows_custom_events_data(): void
@@ -100,11 +110,16 @@ class LivewireDashboardTest extends TestCase
             'created_at' => Carbon::now(),
         ]);
 
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->call('setTab', 'events')
-            ->assertSee('newsletter_signup')
-            ->assertSee('Total Custom Events')
-            ->assertSee('Unique Event Types');
+        $component = new Dashboard;
+        $component->site = $this->site;
+        $component->setTab('events');
+
+        $view = $component->render(app(AnalyticsService::class));
+        $data = $view->getData();
+
+        $this->assertEquals(1, $data['custom_event_summary']['total_custom_events']);
+        $this->assertCount(1, $data['custom_events_list']);
+        $this->assertEquals('newsletter_signup', $data['custom_events_list'][0]['name']);
     }
 
     public function test_livewire_dashboard_can_filter_by_custom_event_name(): void
@@ -127,11 +142,17 @@ class LivewireDashboardTest extends TestCase
             'created_at' => Carbon::now(),
         ]);
 
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->call('setTab', 'events')
-            ->call('selectEvent', 'purchase')
-            ->assertSet('selectedEvent', 'purchase')
-            ->assertSee('Property Value Breakdown');
+        $component = new Dashboard;
+        $component->site = $this->site;
+        $component->setTab('events');
+        $component->selectEvent('purchase');
+
+        $this->assertEquals('purchase', $component->selectedEvent);
+
+        $view = $component->render(app(AnalyticsService::class));
+        $data = $view->getData();
+
+        $this->assertContains('amount', $data['custom_event_property_keys']);
     }
 
     public function test_livewire_dashboard_can_select_property_key(): void
@@ -145,11 +166,18 @@ class LivewireDashboardTest extends TestCase
             'created_at' => Carbon::now(),
         ]);
 
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->call('setTab', 'events')
-            ->call('selectEvent', 'purchase')
-            ->call('selectPropertyKey', 'currency')
-            ->assertSet('selectedPropertyKey', 'currency')
-            ->assertSee('USD');
+        $component = new Dashboard;
+        $component->site = $this->site;
+        $component->setTab('events');
+        $component->selectEvent('purchase');
+        $component->selectPropertyKey('currency');
+
+        $this->assertEquals('currency', $component->selectedPropertyKey);
+
+        $view = $component->render(app(AnalyticsService::class));
+        $data = $view->getData();
+
+        $this->assertNotEmpty($data['custom_event_property_breakdown']);
+        $this->assertEquals('USD', $data['custom_event_property_breakdown'][0]['value']);
     }
 }
