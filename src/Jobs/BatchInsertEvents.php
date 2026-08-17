@@ -38,8 +38,11 @@ class BatchInsertEvents implements ShouldQueue
 
             // Group visitor stats updates to execute a single bulk upsert
             $statsUpserts = [];
+            $nowStr = null;
+
             foreach ($this->events as $event) {
-                $date = substr((string) ($event['created_at'] ?? now()->toDateTimeString()), 0, 10);
+                $createdAt = $event['created_at'] ?? ($nowStr ??= now()->toDateTimeString());
+                $date = is_string($createdAt) ? substr($createdAt, 0, 10) : $createdAt->format('Y-m-d');
                 $visitorKey = $event['visitor_id'] ?? $event['visitor_hash'];
                 $siteId = $event['site_id'];
 
@@ -51,8 +54,8 @@ class BatchInsertEvents implements ShouldQueue
                         'date' => $date,
                         'visitor_hash' => $visitorKey,
                         'views' => 1,
-                        'created_at' => $event['created_at'] ?? now(),
-                        'updated_at' => $event['created_at'] ?? now(),
+                        'created_at' => $createdAt,
+                        'updated_at' => $createdAt,
                     ];
                 } else {
                     $statsUpserts[$key]['views']++;
@@ -60,14 +63,19 @@ class BatchInsertEvents implements ShouldQueue
             }
 
             if (! empty($statsUpserts)) {
-                $driver = DB::connection()->getDriverName();
-                $viewsRaw = $driver === 'sqlite'
-                    ? DB::raw('daily_visitor_stats.views + excluded.views')
-                    : DB::raw('daily_visitor_stats.views + VALUES(views)');
+                static $viewsRaw = null;
+                static $updatedAtRaw = null;
 
-                $updatedAtRaw = $driver === 'sqlite'
-                    ? DB::raw('excluded.updated_at')
-                    : DB::raw('VALUES(updated_at)');
+                if ($viewsRaw === null) {
+                    $driver = DB::connection()->getDriverName();
+                    $viewsRaw = $driver === 'sqlite'
+                        ? DB::raw('daily_visitor_stats.views + excluded.views')
+                        : DB::raw('daily_visitor_stats.views + VALUES(views)');
+
+                    $updatedAtRaw = $driver === 'sqlite'
+                        ? DB::raw('excluded.updated_at')
+                        : DB::raw('VALUES(updated_at)');
+                }
 
                 DB::table('daily_visitor_stats')->upsert(
                     array_values($statsUpserts),
