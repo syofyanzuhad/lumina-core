@@ -1,7 +1,5 @@
 <?php
 
-namespace Lumina\Core\Tests\Feature;
-
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -12,172 +10,157 @@ use Lumina\Core\Models\Site;
 use Lumina\Core\Services\AnalyticsService;
 use Lumina\Core\Tests\TestCase;
 
-class LivewireDashboardTest extends TestCase
-{
-    use RefreshDatabase;
+uses(TestCase::class, RefreshDatabase::class);
 
-    protected Site $site;
+beforeEach(function () {
+    $this->site = Site::factory()->create(['domain' => 'test-domain.com']);
+});
 
-    protected function setUp(): void
-    {
-        parent::setUp();
+test('livewire dashboard component mounts and renders empty state when no events exist', function () {
+    Livewire::test(Dashboard::class, ['site' => $this->site])
+        ->assertSee('test-domain.com')
+        ->assertSee('No data collected yet')
+        ->assertSee('Add the tracking snippet');
+});
 
-        $this->site = Site::factory()->create(['domain' => 'test-domain.com']);
-    }
+test('livewire dashboard component renders metrics and top pages when events exist', function () {
+    Event::create([
+        'site_id' => $this->site->id,
+        'path' => '/home',
+        'referrer' => 'https://google.com',
+        'visitor_hash' => 'hash_visitor_1',
+        'device_type' => DeviceType::Desktop,
+        'created_at' => Carbon::now()->subDays(2),
+    ]);
 
-    public function test_livewire_dashboard_component_mounts_and_renders_empty_state_when_no_events_exist(): void
-    {
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->assertSee('test-domain.com')
-            ->assertSee('No data collected yet')
-            ->assertSee('Add the tracking snippet');
-    }
+    Event::create([
+        'site_id' => $this->site->id,
+        'path' => '/pricing',
+        'referrer' => 'https://twitter.com',
+        'visitor_hash' => 'hash_visitor_2',
+        'device_type' => DeviceType::Mobile,
+        'created_at' => Carbon::now()->subDays(1),
+    ]);
 
-    public function test_livewire_dashboard_component_renders_metrics_and_top_pages_when_events_exist(): void
-    {
-        Event::create([
-            'site_id' => $this->site->id,
-            'path' => '/home',
-            'referrer' => 'https://google.com',
-            'visitor_hash' => 'hash_visitor_1',
-            'device_type' => DeviceType::Desktop,
-            'created_at' => Carbon::now()->subDays(2),
-        ]);
+    Livewire::test(Dashboard::class, ['site' => $this->site])
+        ->assertSee('test-domain.com')
+        ->assertDontSee('No data collected yet')
+        ->assertSee('Total Pageviews')
+        ->assertSee('Unique Visitors')
+        ->assertSee('/home')
+        ->assertSee('/pricing')
+        ->assertSee('Google')
+        ->assertSee('X (Twitter)');
+});
 
-        Event::create([
-            'site_id' => $this->site->id,
-            'path' => '/pricing',
-            'referrer' => 'https://twitter.com',
-            'visitor_hash' => 'hash_visitor_2',
-            'device_type' => DeviceType::Mobile,
-            'created_at' => Carbon::now()->subDays(1),
-        ]);
+test('livewire dashboard component updates reactively when date period changes', function () {
+    Event::create([
+        'site_id' => $this->site->id,
+        'path' => '/old-page',
+        'referrer' => null,
+        'visitor_hash' => 'hash_old',
+        'device_type' => DeviceType::Desktop,
+        'created_at' => Carbon::now()->subDays(10),
+    ]);
 
-        Livewire::test(Dashboard::class, ['site' => $this->site])
-            ->assertSee('test-domain.com')
-            ->assertDontSee('No data collected yet')
-            ->assertSee('Total Pageviews')
-            ->assertSee('Unique Visitors')
-            ->assertSee('/home')
-            ->assertSee('/pricing')
-            ->assertSee('Google')
-            ->assertSee('X (Twitter)');
-    }
+    $component = new Dashboard;
+    $component->site = $this->site;
+    $component->period = '30d';
 
-    public function test_livewire_dashboard_component_updates_reactively_when_date_period_changes(): void
-    {
-        Event::create([
-            'site_id' => $this->site->id,
-            'path' => '/old-page',
-            'referrer' => null,
-            'visitor_hash' => 'hash_old',
-            'device_type' => DeviceType::Desktop,
-            'created_at' => Carbon::now()->subDays(10),
-        ]);
+    $this->assertEquals('30d', $component->period);
+    $component->setPeriod('7d');
+    $this->assertEquals('7d', $component->period);
 
-        $component = new Dashboard;
-        $component->site = $this->site;
-        $component->period = '30d';
+    $view = $component->render(app(AnalyticsService::class));
+    $this->assertEquals('lumina::livewire.dashboard', $view->name());
+});
 
-        $this->assertEquals('30d', $component->period);
-        $component->setPeriod('7d');
-        $this->assertEquals('7d', $component->period);
+test('livewire dashboard can switch to custom events tab', function () {
+    $component = new Dashboard;
+    $component->site = $this->site;
 
-        $view = $component->render(app(AnalyticsService::class));
-        $this->assertEquals('lumina::livewire.dashboard', $view->name());
-    }
+    $component->setTab('events');
+    $this->assertEquals('events', $component->activeTab);
 
-    public function test_livewire_dashboard_can_switch_to_custom_events_tab(): void
-    {
-        $component = new Dashboard;
-        $component->site = $this->site;
+    $view = $component->render(app(AnalyticsService::class));
+    $this->assertArrayHasKey('custom_event_summary', $view->getData());
+});
 
-        $component->setTab('events');
-        $this->assertEquals('events', $component->activeTab);
+test('livewire dashboard shows custom events data', function () {
+    Event::create([
+        'site_id' => $this->site->id,
+        'metadata' => ['name' => 'newsletter_signup', 'props' => ['plan' => 'free']],
+        'path' => '/',
+        'device_type' => DeviceType::Desktop,
+        'visitor_hash' => 'hash_evt',
+        'created_at' => Carbon::now(),
+    ]);
 
-        $view = $component->render(app(AnalyticsService::class));
-        $this->assertArrayHasKey('custom_event_summary', $view->getData());
-    }
+    $component = new Dashboard;
+    $component->site = $this->site;
+    $component->setTab('events');
 
-    public function test_livewire_dashboard_shows_custom_events_data(): void
-    {
-        Event::create([
-            'site_id' => $this->site->id,
-            'metadata' => ['name' => 'newsletter_signup', 'props' => ['plan' => 'free']],
-            'path' => '/',
-            'device_type' => DeviceType::Desktop,
-            'visitor_hash' => 'hash_evt',
-            'created_at' => Carbon::now(),
-        ]);
+    $view = $component->render(app(AnalyticsService::class));
+    $data = $view->getData();
 
-        $component = new Dashboard;
-        $component->site = $this->site;
-        $component->setTab('events');
+    $this->assertEquals(1, $data['custom_event_summary']['total_custom_events']);
+    $this->assertCount(1, $data['custom_events_list']);
+    $this->assertEquals('newsletter_signup', $data['custom_events_list'][0]['name']);
+});
 
-        $view = $component->render(app(AnalyticsService::class));
-        $data = $view->getData();
+test('livewire dashboard can filter by custom event name', function () {
+    Event::create([
+        'site_id' => $this->site->id,
+        'metadata' => ['name' => 'newsletter_signup', 'props' => ['plan' => 'free']],
+        'path' => '/',
+        'device_type' => DeviceType::Desktop,
+        'visitor_hash' => 'hash_evt_1',
+        'created_at' => Carbon::now(),
+    ]);
 
-        $this->assertEquals(1, $data['custom_event_summary']['total_custom_events']);
-        $this->assertCount(1, $data['custom_events_list']);
-        $this->assertEquals('newsletter_signup', $data['custom_events_list'][0]['name']);
-    }
+    Event::create([
+        'site_id' => $this->site->id,
+        'metadata' => ['name' => 'purchase', 'props' => ['amount' => 50]],
+        'path' => '/checkout',
+        'device_type' => DeviceType::Desktop,
+        'visitor_hash' => 'hash_evt_2',
+        'created_at' => Carbon::now(),
+    ]);
 
-    public function test_livewire_dashboard_can_filter_by_custom_event_name(): void
-    {
-        Event::create([
-            'site_id' => $this->site->id,
-            'metadata' => ['name' => 'newsletter_signup', 'props' => ['plan' => 'free']],
-            'path' => '/',
-            'device_type' => DeviceType::Desktop,
-            'visitor_hash' => 'hash_evt_1',
-            'created_at' => Carbon::now(),
-        ]);
+    $component = new Dashboard;
+    $component->site = $this->site;
+    $component->setTab('events');
+    $component->selectEvent('purchase');
 
-        Event::create([
-            'site_id' => $this->site->id,
-            'metadata' => ['name' => 'purchase', 'props' => ['amount' => 50]],
-            'path' => '/checkout',
-            'device_type' => DeviceType::Desktop,
-            'visitor_hash' => 'hash_evt_2',
-            'created_at' => Carbon::now(),
-        ]);
+    $this->assertEquals('purchase', $component->selectedEvent);
 
-        $component = new Dashboard;
-        $component->site = $this->site;
-        $component->setTab('events');
-        $component->selectEvent('purchase');
+    $view = $component->render(app(AnalyticsService::class));
+    $data = $view->getData();
 
-        $this->assertEquals('purchase', $component->selectedEvent);
+    $this->assertContains('amount', $data['custom_event_property_keys']);
+});
 
-        $view = $component->render(app(AnalyticsService::class));
-        $data = $view->getData();
+test('livewire dashboard can select property key', function () {
+    Event::create([
+        'site_id' => $this->site->id,
+        'metadata' => ['name' => 'purchase', 'props' => ['amount' => 50, 'currency' => 'USD']],
+        'path' => '/checkout',
+        'device_type' => DeviceType::Desktop,
+        'visitor_hash' => 'hash_evt',
+        'created_at' => Carbon::now(),
+    ]);
 
-        $this->assertContains('amount', $data['custom_event_property_keys']);
-    }
+    $component = new Dashboard;
+    $component->site = $this->site;
+    $component->setTab('events');
+    $component->selectEvent('purchase');
+    $component->selectPropertyKey('currency');
 
-    public function test_livewire_dashboard_can_select_property_key(): void
-    {
-        Event::create([
-            'site_id' => $this->site->id,
-            'metadata' => ['name' => 'purchase', 'props' => ['amount' => 50, 'currency' => 'USD']],
-            'path' => '/checkout',
-            'device_type' => DeviceType::Desktop,
-            'visitor_hash' => 'hash_evt',
-            'created_at' => Carbon::now(),
-        ]);
+    $this->assertEquals('currency', $component->selectedPropertyKey);
 
-        $component = new Dashboard;
-        $component->site = $this->site;
-        $component->setTab('events');
-        $component->selectEvent('purchase');
-        $component->selectPropertyKey('currency');
+    $view = $component->render(app(AnalyticsService::class));
+    $data = $view->getData();
 
-        $this->assertEquals('currency', $component->selectedPropertyKey);
-
-        $view = $component->render(app(AnalyticsService::class));
-        $data = $view->getData();
-
-        $this->assertNotEmpty($data['custom_event_property_breakdown']);
-        $this->assertEquals('USD', $data['custom_event_property_breakdown'][0]['value']);
-    }
-}
+    $this->assertNotEmpty($data['custom_event_property_breakdown']);
+    $this->assertEquals('USD', $data['custom_event_property_breakdown'][0]['value']);
+});
