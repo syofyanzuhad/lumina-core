@@ -1174,16 +1174,18 @@ class AnalyticsService
                     continue;
                 }
 
-                $converters = (clone $query)->distinct()->count(DB::raw($this->visitorExpression()));
+                $visitorExpr = $this->visitorExpression();
+
+                $goalRows = (clone $query)
+                    ->selectRaw("{$dateExpr} as date, {$visitorExpr} as visitor_key, count(*) as completions")
+                    ->groupBy('date', DB::raw($visitorExpr))
+                    ->get();
+
+                $converters = $goalRows->pluck('visitor_key')->filter(fn ($v) => ! is_null($v) && $v !== '')->unique()->count();
                 $conversionRate = $uniqueVisitors > 0 ? round(($converters / $uniqueVisitors) * 100, 1) : 0.0;
 
-                $trendRows = (clone $query)
-                    ->selectRaw("{$dateExpr} as date, count(*) as completions")
-                    ->groupBy('date')
-                    ->get()
-                    ->keyBy('date');
-
-                $completions = (int) $trendRows->sum('completions');
+                $trendRows = $goalRows->groupBy('date')->map(fn ($group) => (int) $group->sum('completions'));
+                $completions = (int) $goalRows->sum('completions');
 
                 $trend = [];
                 $curr = $start->copy()->startOfDay();
@@ -1191,11 +1193,9 @@ class AnalyticsService
 
                 while ($curr->lte($last)) {
                     $dateStr = $curr->format('Y-m-d');
-                    $row = $trendRows->get($dateStr);
-
                     $trend[] = [
                         'date' => $dateStr,
-                        'completions' => $row ? (int) $row->completions : 0,
+                        'completions' => $trendRows->get($dateStr, 0),
                     ];
                     $curr = $curr->addDay();
                 }
