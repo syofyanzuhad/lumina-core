@@ -2,12 +2,12 @@
 
 namespace Lumina\Core\Livewire;
 
-use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
 use Lumina\Core\Models\Site;
 use Lumina\Core\Services\AnalyticsService;
+use Lumina\Core\Support\DateRangeHelper;
 
 class Dashboard extends Component
 {
@@ -93,23 +93,6 @@ class Dashboard extends Component
      */
     protected function resolveDateRange(): array
     {
-        if ($this->period === '7d') {
-            return [
-                now()->subDays(6)->startOfDay(),
-                now()->endOfDay(),
-            ];
-        }
-
-        if ($this->period === 'custom' && $this->startDate && $this->endDate) {
-            return [
-                Carbon::parse($this->startDate)->startOfDay(),
-                Carbon::parse($this->endDate)->endOfDay(),
-            ];
-        }
-
-        return [
-            now()->subDays(29)->startOfDay(),
-            now()->endOfDay(),
-        ];
+        return DateRangeHelper::resolve($this->period, $this->startDate, $this->endDate);
     }
 }
