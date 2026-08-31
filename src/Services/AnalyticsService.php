@@ -567,6 +567,8 @@ class AnalyticsService
                 ->select($countryExpr, DB::raw('MAX(country_name) as country_name'), DB::raw('count(*) as count'))
                 ->groupBy('code')
                 ->orderByDesc('count')
+                ->orderBy('code')
+                ->limit($limit)
                 ->get();
 
             return $results
@@ -641,10 +643,14 @@ class AnalyticsService
      */
     public function getCurrentVisitors(Site $site, int $minutes = 5): int
     {
-        return (int) Event::where('site_id', $site->id)
-            ->where('created_at', '>=', now()->subMinutes($minutes))
-            ->distinct()
-            ->count(DB::raw($this->visitorExpression()));
+        $cacheKey = "lumina:analytics:{$site->id}:current_visitors_{$minutes}m";
+
+        return (int) $this->rememberCache($site->id, $cacheKey, function () use ($site, $minutes) {
+            return Event::where('site_id', $site->id)
+                ->where('created_at', '>=', now()->subMinutes($minutes))
+                ->distinct()
+                ->count(DB::raw($this->visitorExpression()));
+        }, 15);
     }
 
     /**
@@ -1168,7 +1174,6 @@ class AnalyticsService
                     continue;
                 }
 
-                $completions = (clone $query)->count();
                 $converters = (clone $query)->distinct()->count(DB::raw($this->visitorExpression()));
                 $conversionRate = $uniqueVisitors > 0 ? round(($converters / $uniqueVisitors) * 100, 1) : 0.0;
 
@@ -1177,6 +1182,8 @@ class AnalyticsService
                     ->groupBy('date')
                     ->get()
                     ->keyBy('date');
+
+                $completions = (int) $trendRows->sum('completions');
 
                 $trend = [];
                 $curr = $start->copy()->startOfDay();
