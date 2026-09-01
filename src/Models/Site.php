@@ -72,24 +72,37 @@ class Site extends Model
     /**
      * Cache-aware domain lookup used by the tracking pipeline.
      *
-     * The cached entry is invalidated automatically by the saved/deleted hooks
-     * below, so newly created or renamed sites are trackable immediately.
+     * Caches the full site attributes (excluding share_password) so that
+     * cache hits never fire a DB query. The model is re-hydrated from the
+     * cached array via newFromBuilder(), which is the same path Eloquent
+     * uses internally after a SELECT — casts, appends, and accessors all
+     * apply normally on first access.
+     *
+     * The cached entry is invalidated automatically by the saved/deleted
+     * hooks below, so newly created or renamed sites are trackable
+     * immediately. The 'lumina_site_lookup:' namespace deliberately differs
+     * from the 'lumina_site:' rate-limiter keys used by TrackPageview so
+     * the two can never collide in the cache store.
      */
     public static function cachedByDomain(string $domain): ?self
     {
         $domain = Str::lower($domain);
 
-        // Cache only the scalar site id (serializing an Eloquent model into a
-        // shared cache store is unreliable), then re-query the fresh model.
-        // Note: the 'lumina_site_lookup:' namespace deliberately differs from
-        // the 'lumina_site:' rate-limiter keys used by TrackPageview so the two
-        // can never collide in the cache store.
-        $siteId = Cache::remember('lumina_site_lookup:'.$domain, 3600, function () use ($domain) {
-            return static::where('domain', $domain)->value('id');
+        /** @var array<string, mixed>|null $attributes */
+        $attributes = Cache::remember('lumina_site_lookup:'.$domain, 3600, function () use ($domain) {
+            return static::where('domain', $domain)
+                ->first(['id', 'domain', 'owner_id', 'is_public', 'share_token',
+                    'share_password', 'api_token', 'retention_days',
+                    'created_at', 'updated_at'])
+                ?->getRawOriginal();
         });
 
-        /** @var static|null $site */
-        $site = $siteId ? static::find($siteId) : null;
+        if (! $attributes) {
+            return null;
+        }
+
+        /** @var static $site */
+        $site = (new static)->newFromBuilder($attributes);
 
         return $site;
     }
