@@ -109,8 +109,7 @@ class Site extends Model
             return null;
         }
 
-        /** @var static $site */
-        $site = (new static)->newFromBuilder($attributes);
+        $site = (new self)->newFromBuilder($attributes);
 
         return $site;
     }
