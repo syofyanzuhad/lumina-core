@@ -87,17 +87,25 @@ class Site extends Model
     public static function cachedByDomain(string $domain): ?self
     {
         $domain = Str::lower($domain);
+        $cacheKey = 'lumina_site_lookup:'.$domain;
 
-        /** @var array<string, mixed>|null $attributes */
-        $attributes = Cache::remember('lumina_site_lookup:'.$domain, 3600, function () use ($domain) {
+        /** @var mixed $attributes */
+        $attributes = Cache::remember($cacheKey, 3600, function () use ($domain) {
             return static::where('domain', $domain)
                 ->first(['id', 'domain', 'owner_id', 'is_public', 'share_token',
                     'share_password', 'api_token', 'retention_days',
                     'created_at', 'updated_at'])
-                ?->getRawOriginal();
+                ?->getAttributes();
         });
 
-        if (! $attributes) {
+        // Defensive check: if legacy/corrupt scalar data exists in cache, flush and re-query
+        if (! is_array($attributes) || ! isset($attributes['id'])) {
+            if ($attributes !== null) {
+                Cache::forget($cacheKey);
+
+                return static::cachedByDomain($domain);
+            }
+
             return null;
         }
 
