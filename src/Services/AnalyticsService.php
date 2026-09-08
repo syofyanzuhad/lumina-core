@@ -133,26 +133,38 @@ class AnalyticsService
      */
     protected function applyFilters(Builder $query, array $filters): Builder
     {
-        if (! empty($filters['path'])) {
-            $query->whereRaw($this->pathExpression().' = ?', [$filters['path']]);
-        }
-        if (! empty($filters['referrer'])) {
-            $query->where('referrer', $filters['referrer']);
-        }
-        if (! empty($filters['country'])) {
-            $query->where('country_code', $filters['country']);
-        }
-        if (! empty($filters['browser'])) {
-            $query->where('browser', $filters['browser']);
-        }
-        if (! empty($filters['os'])) {
-            $query->where('os', $filters['os']);
-        }
-        if (! empty($filters['device'])) {
-            $query->where('device_type', $filters['device']);
-        }
-        if (! empty($filters['utm_campaign'])) {
-            $query->where('utm_campaign', $filters['utm_campaign']);
+        foreach ($filters as $key => $rawVal) {
+            if ($rawVal === null || $rawVal === '') {
+                continue;
+            }
+
+            $rawVal = (string) $rawVal;
+            $isNegated = str_starts_with($rawVal, '!');
+            $value = $isNegated ? substr($rawVal, 1) : $rawVal;
+
+            if ($isNegated) {
+                match ($key) {
+                    'path' => $query->whereRaw("({$this->pathExpression()} != ? OR {$this->pathExpression()} IS NULL)", [$value]),
+                    'referrer' => $query->where(fn ($q) => $q->where('referrer', '!=', $value)->orWhereNull('referrer')),
+                    'country' => $query->where(fn ($q) => $q->where('country_code', '!=', $value)->orWhereNull('country_code')),
+                    'browser' => $query->where(fn ($q) => $q->where('browser', '!=', $value)->orWhereNull('browser')),
+                    'os' => $query->where(fn ($q) => $q->where('os', '!=', $value)->orWhereNull('os')),
+                    'device' => $query->where(fn ($q) => $q->where('device_type', '!=', $value)->orWhereNull('device_type')),
+                    'utm_campaign' => $query->where(fn ($q) => $q->where('utm_campaign', '!=', $value)->orWhereNull('utm_campaign')),
+                    default => null,
+                };
+            } else {
+                match ($key) {
+                    'path' => $query->whereRaw("{$this->pathExpression()} = ?", [$value]),
+                    'referrer' => $query->where('referrer', $value),
+                    'country' => $query->where('country_code', $value),
+                    'browser' => $query->where('browser', $value),
+                    'os' => $query->where('os', $value),
+                    'device' => $query->where('device_type', $value),
+                    'utm_campaign' => $query->where('utm_campaign', $value),
+                    default => null,
+                };
+            }
         }
 
         return $query;

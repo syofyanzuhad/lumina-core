@@ -748,3 +748,80 @@ test('metric invariants hold for the seeded dataset', function () {
         expect($page['percentage'])->toBeLessThanOrEqual(100.0);
     }
 });
+
+test('it filters metrics with include and exclude operators across dimensions', function () {
+    // Total is 5 pageviews (/home: 2, /pricing: 1, /checkout: 2)
+    $includePath = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['path' => '/home']);
+    expect($includePath)->toBe(2);
+
+    $excludePath = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['path' => '!/home']);
+    expect($excludePath)->toBe(3);
+
+    // Referrer: https://google.com has 3 events
+    $includeRef = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['referrer' => 'https://google.com']);
+    expect($includeRef)->toBe(3);
+
+    $excludeRef = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['referrer' => '!https://google.com']);
+    expect($excludeRef)->toBe(2);
+
+    // Device: Desktop has 4, Mobile has 1
+    $includeDesktop = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['device' => 'desktop']);
+    expect($includeDesktop)->toBe(4);
+
+    $excludeDesktop = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['device' => '!desktop']);
+    expect($excludeDesktop)->toBe(1);
+});
+
+test('it correctly handles combined inclusion and exclusion filters', function () {
+    // Seed events with country, browser, os, utm_campaign
+    Event::create([
+        'site_id' => $this->siteA->id,
+        'path' => '/features',
+        'referrer' => 'https://github.com',
+        'country_code' => 'US',
+        'browser' => 'Chrome',
+        'os' => 'macOS',
+        'device_type' => DeviceType::Desktop,
+        'utm_campaign' => 'summer_launch',
+        'visitor_hash' => 'hash_combo_1',
+        'created_at' => Carbon::parse('2026-07-02 16:00:00'),
+    ]);
+
+    Event::create([
+        'site_id' => $this->siteA->id,
+        'path' => '/features',
+        'referrer' => 'https://github.com',
+        'country_code' => 'DE',
+        'browser' => 'Firefox',
+        'os' => 'Linux',
+        'device_type' => DeviceType::Desktop,
+        'utm_campaign' => 'summer_launch',
+        'visitor_hash' => 'hash_combo_2',
+        'created_at' => Carbon::parse('2026-07-02 17:00:00'),
+    ]);
+
+    // Query 1: Country is US
+    $usCount = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, ['country' => 'US']);
+    expect($usCount)->toBe(1);
+
+    // Query 2: Country is NOT US on path /features (should only match the DE one)
+    $nonUsFeatures = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, [
+        'path' => '/features',
+        'country' => '!US',
+    ]);
+    expect($nonUsFeatures)->toBe(1);
+
+    // Query 3: Browser is NOT Firefox on path /features (should only match the Chrome one)
+    $nonFirefox = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, [
+        'path' => '/features',
+        'browser' => '!Firefox',
+    ]);
+    expect($nonFirefox)->toBe(1);
+
+    // Query 4: UTM campaign is summer_launch but OS is NOT Linux (should only match the macOS one)
+    $summerNonLinux = $this->service->getPageviews($this->siteA, $this->startDate, $this->endDate, [
+        'utm_campaign' => 'summer_launch',
+        'os' => '!Linux',
+    ]);
+    expect($summerNonLinux)->toBe(1);
+});
