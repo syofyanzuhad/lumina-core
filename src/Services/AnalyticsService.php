@@ -150,6 +150,8 @@ class AnalyticsService
                     'browser' => $query->where(fn ($q) => $q->where('browser', '!=', $value)->orWhereNull('browser')),
                     'os' => $query->where(fn ($q) => $q->where('os', '!=', $value)->orWhereNull('os')),
                     'device' => $query->where(fn ($q) => $q->where('device_type', '!=', $value)->orWhereNull('device_type')),
+                    'utm_source' => $query->where(fn ($q) => $q->where('utm_source', '!=', $value)->orWhereNull('utm_source')),
+                    'utm_medium' => $query->where(fn ($q) => $q->where('utm_medium', '!=', $value)->orWhereNull('utm_medium')),
                     'utm_campaign' => $query->where(fn ($q) => $q->where('utm_campaign', '!=', $value)->orWhereNull('utm_campaign')),
                     default => null,
                 };
@@ -161,6 +163,8 @@ class AnalyticsService
                     'browser' => $query->where('browser', $value),
                     'os' => $query->where('os', $value),
                     'device' => $query->where('device_type', $value),
+                    'utm_source' => $query->where('utm_source', $value),
+                    'utm_medium' => $query->where('utm_medium', $value),
                     'utm_campaign' => $query->where('utm_campaign', $value),
                     default => null,
                 };
