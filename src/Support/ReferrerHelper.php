@@ -92,4 +92,21 @@ class ReferrerHelper
 
         return $host;
     }
+
+    /**
+     * Get all domains matching a platform name, or return empty array if not a known platform.
+     *
+     * @return array<int, string>
+     */
+    public static function getDomainsForPlatform(string $platform): array
+    {
+        $domains = [];
+        foreach (static::$knownPlatforms as $domain => $name) {
+            if (strcasecmp($name, $platform) === 0) {
+                $domains[] = $domain;
+            }
+        }
+
+        return array_values(array_unique($domains));
+    }
 }

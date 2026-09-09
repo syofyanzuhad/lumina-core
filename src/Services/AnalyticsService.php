@@ -145,7 +145,7 @@ class AnalyticsService
             if ($isNegated) {
                 match ($key) {
                     'path' => $query->whereRaw("({$this->pathExpression()} != ? OR {$this->pathExpression()} IS NULL)", [$value]),
-                    'referrer' => $query->where(fn ($q) => $q->where('referrer', '!=', $value)->orWhereNull('referrer')),
+                    'referrer' => $this->applyReferrerFilter($query, $value, true),
                     'country' => $query->where(fn ($q) => $q->where('country_code', '!=', $value)->orWhereNull('country_code')),
                     'browser' => $query->where(fn ($q) => $q->where('browser', '!=', $value)->orWhereNull('browser')),
                     'os' => $query->where(fn ($q) => $q->where('os', '!=', $value)->orWhereNull('os')),
@@ -158,7 +158,7 @@ class AnalyticsService
             } else {
                 match ($key) {
                     'path' => $query->whereRaw("{$this->pathExpression()} = ?", [$value]),
-                    'referrer' => $query->where('referrer', $value),
+                    'referrer' => $this->applyReferrerFilter($query, $value, false),
                     'country' => $query->where('country_code', $value),
                     'browser' => $query->where('browser', $value),
                     'os' => $query->where('os', $value),
@@ -172,6 +172,65 @@ class AnalyticsService
         }
 
         return $query;
+    }
+
+    /**
+     * Apply referrer filter matching either a known platform name (e.g. "Google", "X (Twitter)"),
+     * a domain, or a raw URL.
+     *
+     * @param  Builder<Event>  $query
+     * @return Builder<Event>
+     */
+    protected function applyReferrerFilter(Builder $query, string $value, bool $isNegated): Builder
+    {
+        // 1. Direct / None handling
+        if (strcasecmp($value, 'Direct / None') === 0 || strcasecmp($value, 'Direct') === 0) {
+            return $isNegated
+                ? $query->where(fn ($q) => $q->whereNotNull('referrer')->where('referrer', '!=', '')->where('referrer', '!=', 'Direct'))
+                : $query->where(fn ($q) => $q->whereNull('referrer')->orWhere('referrer', '')->orWhere('referrer', 'Direct'));
+        }
+
+        // 2. Known platform name (e.g. "Google", "X (Twitter)", "GitHub")
+        $platformDomains = ReferrerHelper::getDomainsForPlatform($value);
+
+        if (! empty($platformDomains)) {
+            if ($isNegated) {
+                return $query->where(function ($q) use ($platformDomains, $value) {
+                    $q->where(function ($sub) use ($platformDomains, $value) {
+                        $sub->where('referrer', '!=', $value);
+                        foreach ($platformDomains as $domain) {
+                            $sub->where('referrer', 'not like', "%{$domain}%");
+                        }
+                    })->orWhereNull('referrer');
+                });
+            }
+
+            return $query->where(function ($q) use ($platformDomains, $value) {
+                $q->where('referrer', $value);
+                foreach ($platformDomains as $domain) {
+                    $q->orWhere('referrer', 'like', "%{$domain}%");
+                }
+            });
+        }
+
+        // 3. Fallback: exact match or partial domain match
+        if ($isNegated) {
+            return $query->where(function ($q) use ($value) {
+                $q->where(function ($sub) use ($value) {
+                    $sub->where('referrer', '!=', $value);
+                    if (! str_contains($value, '://')) {
+                        $sub->where('referrer', 'not like', "%{$value}%");
+                    }
+                })->orWhereNull('referrer');
+            });
+        }
+
+        return $query->where(function ($q) use ($value) {
+            $q->where('referrer', $value);
+            if (! str_contains($value, '://')) {
+                $q->orWhere('referrer', 'like', "%{$value}%");
+            }
+        });
     }
 
     /**
