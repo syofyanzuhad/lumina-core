@@ -83,4 +83,27 @@ class CountryHelper
 
         return static::$countries[$code] ?? $code;
     }
+
+    /**
+     * Get 2-letter ISO country code from full English country name or code.
+     */
+    public static function getCode(?string $nameOrCode): ?string
+    {
+        if (! $nameOrCode) {
+            return null;
+        }
+
+        $trimmed = trim($nameOrCode);
+        if (strlen($trimmed) === 2) {
+            return strtoupper($trimmed);
+        }
+
+        foreach (static::$countries as $code => $name) {
+            if (strcasecmp($name, $trimmed) === 0) {
+                return $code;
+            }
+        }
+
+        return null;
+    }
 }

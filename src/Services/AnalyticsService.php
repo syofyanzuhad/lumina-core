@@ -146,7 +146,16 @@ class AnalyticsService
                 match ($key) {
                     'path' => $query->whereRaw("({$this->pathExpression()} != ? OR {$this->pathExpression()} IS NULL)", [$value]),
                     'referrer' => $this->applyReferrerFilter($query, $value, true),
-                    'country' => $query->where(fn ($q) => $q->where('country_code', '!=', $value)->orWhereNull('country_code')),
+                    'country' => (function () use ($query, $value) {
+                        $code = CountryHelper::getCode($value) ?? $value;
+
+                        return $query->where(function ($q) use ($code, $value) {
+                            $q->where(function ($sub) use ($code, $value) {
+                                $sub->where('country_code', '!=', $code)
+                                    ->where('country_code', '!=', $value);
+                            })->orWhereNull('country_code');
+                        });
+                    })(),
                     'browser' => $query->where(fn ($q) => $q->where('browser', '!=', $value)->orWhereNull('browser')),
                     'os' => $query->where(fn ($q) => $q->where('os', '!=', $value)->orWhereNull('os')),
                     'device' => $query->where(fn ($q) => $q->where('device_type', '!=', $value)->orWhereNull('device_type')),
@@ -159,7 +168,11 @@ class AnalyticsService
                 match ($key) {
                     'path' => $query->whereRaw("{$this->pathExpression()} = ?", [$value]),
                     'referrer' => $this->applyReferrerFilter($query, $value, false),
-                    'country' => $query->where('country_code', $value),
+                    'country' => (function () use ($query, $value) {
+                        $code = CountryHelper::getCode($value) ?? $value;
+
+                        return $query->where(fn ($q) => $q->where('country_code', $code)->orWhere('country_code', $value)->orWhere('country', $code)->orWhere('country', $value));
+                    })(),
                     'browser' => $query->where('browser', $value),
                     'os' => $query->where('os', $value),
                     'device' => $query->where('device_type', $value),
