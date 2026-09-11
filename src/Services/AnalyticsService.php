@@ -742,6 +742,63 @@ class AnalyticsService
     }
 
     /**
+     * Get recent active live sessions (page, country, referrer, device, browser, os, visitor).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function getLiveVisitors(Site $site, int $minutes = 5, int $limit = 6): Collection
+    {
+        $cacheKey = "lumina:analytics:{$site->id}:live_visitors_{$minutes}m_{$limit}";
+
+        /** @var array<int, array<string, mixed>>|null $data */
+        $data = $this->rememberCache($site->id, $cacheKey, function () use ($site, $minutes, $limit) {
+            $events = Event::where('site_id', $site->id)
+                ->where('created_at', '>=', now()->subMinutes($minutes))
+                ->orderByDesc('created_at')
+                ->limit($limit * 3)
+                ->get();
+
+            $seen = [];
+            $live = [];
+
+            foreach ($events as $event) {
+                $visitorKey = $event->session_id ?: ($event->visitor_id ?: $event->visitor_hash);
+
+                if (isset($seen[$visitorKey])) {
+                    continue;
+                }
+
+                $seen[$visitorKey] = true;
+
+                $path = $event->clean_path ?: ($event->path ? parse_url($event->path, PHP_URL_PATH) : '/');
+                $device = $event->device_type instanceof \BackedEnum
+                    ? $event->device_type->value
+                    : (is_string($event->device_type) ? $event->device_type : 'desktop');
+
+                $live[] = [
+                    'session_id' => $visitorKey,
+                    'path' => $path ?: '/',
+                    'referrer' => $event->referrer ?: 'Direct',
+                    'country_code' => $event->country_code ?: $event->country,
+                    'country_name' => $event->country_name ?: ($event->country ?: 'Unknown'),
+                    'browser' => $event->browser ?: 'Unknown',
+                    'os' => $event->os ?: 'Unknown',
+                    'device' => $device,
+                    'created_at' => $event->created_at?->toISOString(),
+                ];
+
+                if (count($live) >= $limit) {
+                    break;
+                }
+            }
+
+            return $live;
+        }, 10);
+
+        return collect($data ?? []);
+    }
+
+    /**
      * Get bounce rate — percentage of sessions with exactly one pageview.
      *
      * Session-based via `session_id`, with a documented visitor-level fallback
@@ -870,6 +927,7 @@ class AnalyticsService
             'total_pageviews' => $this->getPageviews($site, $start, $end, $filters),
             'unique_visitors' => $this->getUniqueVisitors($site, $start, $end, $filters),
             'current_visitors' => $this->getCurrentVisitors($site),
+            'live_visitors' => $this->getLiveVisitors($site),
             'bounce_rate' => $this->getBounceRate($site, $start, $end, $filters),
             'avg_duration' => $this->getAvgVisitDuration($site, $start, $end, $filters),
             'daily_pageviews' => $this->getDailyPageviews($site, $start, $end, $filters),
@@ -888,6 +946,7 @@ class AnalyticsService
             'total_pageviews' => $this->getPageviews($site, $start, $end, $filters),
             'unique_visitors' => $this->getUniqueVisitors($site, $start, $end, $filters),
             'current_visitors' => $this->getCurrentVisitors($site),
+            'live_visitors' => $this->getLiveVisitors($site),
             'bounce_rate' => $this->getBounceRate($site, $start, $end, $filters),
             'avg_duration' => $this->getAvgVisitDuration($site, $start, $end, $filters),
             'top_pages' => $this->getTopPages($site, $start, $end, 50, $filters),

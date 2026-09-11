@@ -825,3 +825,27 @@ test('it correctly handles combined inclusion and exclusion filters', function (
     ]);
     expect($summerNonLinux)->toBe(1);
 });
+
+it('retrieves distinct active live visitors within the last N minutes', function () {
+    Event::create([
+        'site_id' => $this->siteA->id,
+        'path' => '/live-session',
+        'referrer' => 'https://news.ycombinator.com',
+        'country_code' => 'US',
+        'country_name' => 'United States',
+        'browser' => 'Chrome',
+        'os' => 'macOS',
+        'device_type' => DeviceType::Desktop,
+        'visitor_hash' => 'live_user_1',
+        'session_id' => 'sess_live_1',
+        'created_at' => now()->subMinute(),
+    ]);
+
+    $live = $this->service->getLiveVisitors($this->siteA, 5);
+
+    expect($live)->not->toBeEmpty();
+    expect($live->first()['path'])->toBe('/live-session');
+    expect($live->first()['country_code'])->toBe('US');
+    expect($live->first()['browser'])->toBe('Chrome');
+    expect($live->first()['referrer'])->toBe('https://news.ycombinator.com');
+});
