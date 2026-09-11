@@ -848,4 +848,21 @@ it('retrieves distinct active live visitors within the last N minutes', function
     expect($live->first()['country_code'])->toBe('US');
     expect($live->first()['browser'])->toBe('Chrome');
     expect($live->first()['referrer'])->toBe('https://news.ycombinator.com');
+
+    // Also verify default 1440m (1 day) includes visitors from earlier in the day
+    Event::create([
+        'site_id' => $this->siteA->id,
+        'path' => '/older-session',
+        'referrer' => 'Direct',
+        'country_code' => 'FR',
+        'browser' => 'Safari',
+        'device_type' => DeviceType::Mobile,
+        'visitor_hash' => 'older_user',
+        'session_id' => 'sess_older_1',
+        'created_at' => now()->subHours(6),
+    ]);
+
+    $liveDefault = $this->service->getLiveVisitors($this->siteA);
+    expect($liveDefault)->toHaveCount(2);
+    expect($liveDefault->pluck('path'))->toContain('/older-session');
 });

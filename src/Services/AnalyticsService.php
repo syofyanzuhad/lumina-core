@@ -743,10 +743,11 @@ class AnalyticsService
 
     /**
      * Get recent active live sessions (page, country, referrer, device, browser, os, visitor).
+     * Defaults to the latest 24 hours (1440 minutes) with up to $limit entries.
      *
      * @return Collection<int, array<string, mixed>>
      */
-    public function getLiveVisitors(Site $site, int $minutes = 5, int $limit = 6): Collection
+    public function getLiveVisitors(Site $site, int $minutes = 1440, int $limit = 6): Collection
     {
         $cacheKey = "lumina:analytics:{$site->id}:live_visitors_{$minutes}m_{$limit}";
 
