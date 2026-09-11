@@ -773,7 +773,7 @@ class AnalyticsService
                 $path = $event->clean_path ?: ($event->path ? parse_url($event->path, PHP_URL_PATH) : '/');
                 $device = $event->device_type instanceof \BackedEnum
                     ? $event->device_type->value
-                    : (is_string($event->device_type) ? $event->device_type : 'desktop');
+                    : $event->device_type;
 
                 $live[] = [
                     'session_id' => $visitorKey,
@@ -784,7 +784,7 @@ class AnalyticsService
                     'browser' => $event->browser ?: 'Unknown',
                     'os' => $event->os ?: 'Unknown',
                     'device' => $device,
-                    'created_at' => $event->created_at?->toISOString(),
+                    'created_at' => $event->created_at->toISOString(),
                 ];
 
                 if (count($live) >= $limit) {
