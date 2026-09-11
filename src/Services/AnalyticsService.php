@@ -922,9 +922,9 @@ class AnalyticsService
      * @param  array<string, mixed>  $filters
      * @return array<string, mixed>
      */
-    public function getKpis(Site $site, CarbonInterface $start, CarbonInterface $end, array $filters = []): array
+    public function getKpis(Site $site, CarbonInterface $start, CarbonInterface $end, array $filters = [], ?CarbonInterface $prevStart = null, ?CarbonInterface $prevEnd = null): array
     {
-        return [
+        $kpis = [
             'total_pageviews' => $this->getPageviews($site, $start, $end, $filters),
             'unique_visitors' => $this->getUniqueVisitors($site, $start, $end, $filters),
             'current_visitors' => $this->getCurrentVisitors($site),
@@ -933,6 +933,15 @@ class AnalyticsService
             'avg_duration' => $this->getAvgVisitDuration($site, $start, $end, $filters),
             'daily_pageviews' => $this->getDailyPageviews($site, $start, $end, $filters),
         ];
+
+        if ($prevStart && $prevEnd) {
+            $kpis['prev_total_pageviews'] = $this->getPageviews($site, $prevStart, $prevEnd, $filters);
+            $kpis['prev_unique_visitors'] = $this->getUniqueVisitors($site, $prevStart, $prevEnd, $filters);
+            $kpis['prev_bounce_rate'] = $this->getBounceRate($site, $prevStart, $prevEnd, $filters);
+            $kpis['prev_avg_duration'] = $this->getAvgVisitDuration($site, $prevStart, $prevEnd, $filters);
+        }
+
+        return $kpis;
     }
 
     /**
