@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Lumina\Core\Enums\DeviceType;
 use Lumina\Core\Jobs\InsertEvent;
 use Lumina\Core\Models\Site;
+use Lumina\Core\Support\BotDetector;
 use Lumina\Core\Support\TrackingIdentity;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -65,6 +66,10 @@ class TrackPageview
      */
     protected function track(Request $request): void
     {
+        if (BotDetector::isBot($request->userAgent())) {
+            return;
+        }
+
         $host = $request->getHost();
 
         $site = Site::cachedByDomain($host);

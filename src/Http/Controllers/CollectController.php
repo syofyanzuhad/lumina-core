@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Lumina\Core\Enums\DeviceType;
 use Lumina\Core\Jobs\InsertEvent;
 use Lumina\Core\Models\Site;
+use Lumina\Core\Support\BotDetector;
 use Lumina\Core\Support\TrackingIdentity;
 
 class CollectController extends Controller
@@ -54,6 +55,10 @@ class CollectController extends Controller
                 'status' => 'ok',
                 'message' => 'Lumina Analytics Collector API is active.',
             ], 200, $corsHeaders);
+        }
+
+        if (BotDetector::isBot($request->userAgent())) {
+            return response()->json(null, 204, $corsHeaders);
         }
 
         // Per-IP rate limit on the ingest path (the middleware already limits
